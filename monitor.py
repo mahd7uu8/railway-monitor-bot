@@ -6,8 +6,8 @@ CHAT = str(os.environ["TELEGRAM_CHAT_ID"])
 UA = "railway-monitor-bot"
 STATE_FILE = "state.json"
 
-TRIAL_ALERT_DAYS = 5      # هشدار وقتی روز باقی‌مانده کمتر یا مساوی این باشد
-CREDIT_ALERT_USD = 0.5    # هشدار وقتی اعتبار کمتر یا مساوی این باشد
+TRIAL_ALERT_DAYS = 31      # هشدار وقتی روز باقی‌مانده کمتر یا مساوی این باشد
+CREDIT_ALERT_USD = 6   # هشدار وقتی اعتبار کمتر یا مساوی این باشد
 TRIAL_REPEAT_H = 12       # هر چند ساعت یادآوری هشدار روزها
 CREDIT_REPEAT_H = 3       # هر چند ساعت یادآوری هشدار اعتبار
 
