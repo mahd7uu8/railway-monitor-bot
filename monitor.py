@@ -6,8 +6,8 @@ CHAT = str(os.environ["TELEGRAM_CHAT_ID"])
 UA = "railway-monitor-bot"
 STATE_FILE = "state.json"
 
-TRIAL_ALERT_DAYS = 31      # هشدار وقتی روز باقی‌مانده کمتر یا مساوی این باشد
-CREDIT_ALERT_USD = 6   # هشدار وقتی اعتبار کمتر یا مساوی این باشد
+TRIAL_ALERT_DAYS = 31     # هشدار وقتی روز باقی‌مانده کمتر یا مساوی این باشد
+CREDIT_ALERT_USD = 6      # هشدار وقتی اعتبار کمتر یا مساوی این باشد
 TRIAL_REPEAT_H = 12       # هر چند ساعت یادآوری هشدار روزها
 CREDIT_REPEAT_H = 3       # هر چند ساعت یادآوری هشدار اعتبار
 
@@ -24,9 +24,16 @@ def http(url, payload=None, headers=None):
     if headers:
         h.update(headers)
     data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(url, data=data, headers=h)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    last = None
+    for _ in range(3):
+        try:
+            req = urllib.request.Request(url, data=data, headers=h)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return json.load(r)
+        except Exception as e:
+            last = e
+            time.sleep(2)
+    raise last
 
 
 def gql(q):
@@ -39,7 +46,12 @@ def tg(method, payload):
 
 
 def send(text):
-    tg("sendMessage", {"chat_id": CHAT, "text": text[:4000], "reply_markup": KB})
+    try:
+        tg("sendMessage", {"chat_id": CHAT, "text": text[:4000], "reply_markup": KB})
+        return True
+    except Exception as e:
+        print("send failed:", e)
+        return False
 
 
 def dig(x):
@@ -105,8 +117,8 @@ def main():
     ups = []
     try:
         ups = tg("getUpdates", {"timeout": 0, "allowed_updates": ["message"]}).get("result", [])
-    except Exception:
-        pass
+    except Exception as e:
+        print("getUpdates failed:", e)
     for u in ups:
         m = u.get("message") or {}
         if str((m.get("chat") or {}).get("id")) != CHAT:
@@ -117,8 +129,8 @@ def main():
     if ups:
         try:
             tg("getUpdates", {"offset": ups[-1]["update_id"] + 1, "timeout": 0})
-        except Exception:
-            pass
+        except Exception as e:
+            print("confirm failed:", e)
 
     if c is None:
         if asked:
@@ -141,15 +153,15 @@ def main():
 
     if (c.get("isTrialing") and days is not None and days <= TRIAL_ALERT_DAYS
             and now - state.get("trial", 0) > TRIAL_REPEAT_H * 3600):
-        send("⏳ هشدار: %s روز تا پایان دوره آزمایشی Railway مانده.\n\n%s" % (c.get("trialDaysRemaining"), status_text(c)))
-        state["trial"] = now
-        changed = True
+        if send("⏳ هشدار: %s روز تا پایان دوره آزمایشی Railway مانده.\n\n%s" % (c.get("trialDaysRemaining"), status_text(c))):
+            state["trial"] = now
+            changed = True
 
     if (credit is not None and credit <= CREDIT_ALERT_USD
             and now - state.get("credit", 0) > CREDIT_REPEAT_H * 3600):
-        send("💸 هشدار: اعتبار Railway رو به اتمام است.\n\n" + status_text(c))
-        state["credit"] = now
-        changed = True
+        if send("💸 هشدار: اعتبار Railway رو به اتمام است.\n\n" + status_text(c)):
+            state["credit"] = now
+            changed = True
 
     if changed:
         with open(STATE_FILE, "w") as f:
